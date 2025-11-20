@@ -8,6 +8,82 @@ export interface GenerationResult {
   error: string | null;
 }
 
+/**
+ * Adds the "EMOTIVE" watermark to the generated image using HTML5 Canvas.
+ * Uses blend modes to ensure the logo looks embedded in the texture.
+ */
+const addWatermark = (base64Data: string, mimeType: string): Promise<string> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const src = `data:${mimeType};base64,${base64Data}`;
+    
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(src);
+          return;
+        }
+        
+        // Draw the original image
+        ctx.drawImage(img, 0, 0);
+        
+        // Watermark Configuration
+        const text = "EMOTIVE";
+        
+        // Calculate responsive font size (reduced to approx 8% of image width)
+        const fontSize = Math.floor(img.width * 0.08);
+        
+        // Use a heavy, bold sans-serif font to match the branding
+        ctx.font = `900 ${fontSize}px system-ui, -apple-system, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        // Position: Centered horizontally, near the bottom
+        const x = canvas.width / 2;
+        const y = canvas.height - (fontSize * 2);
+        
+        // "Embedded" effect using Composite Operations
+        
+        // Layer 1: Overlay blend mode
+        // This lightens the underlying texture, making the text look like light reflection on the fluid
+        ctx.save();
+        ctx.globalCompositeOperation = 'overlay';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)'; 
+        ctx.fillText(text, x, y);
+        ctx.restore();
+        
+        // Layer 2: Soft normal fill for legibility
+        // Ensures readability if the background is too bright for 'overlay' to work alone
+        ctx.save();
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)'; 
+        
+        // Add a soft shadow to lift it slightly from the texture
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
+        ctx.shadowBlur = 10;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 2;
+        
+        ctx.fillText(text, x, y);
+        ctx.restore();
+
+        resolve(canvas.toDataURL(mimeType));
+      } catch (e) {
+        console.error("Watermarking failed:", e);
+        resolve(src);
+      }
+    };
+    
+    img.onerror = () => resolve(src);
+    img.src = src;
+  });
+};
+
 export const generateEmotiveWallpaper = async (feeling: string): Promise<GenerationResult> => {
   try {
     const prompt = `
@@ -48,7 +124,11 @@ export const generateEmotiveWallpaper = async (feeling: string): Promise<Generat
       for (const part of response.candidates[0].content.parts) {
         if (part.inlineData) {
           const base64EncodeString = part.inlineData.data;
-          const imageUrl = `data:${part.inlineData.mimeType};base64,${base64EncodeString}`;
+          const mimeType = part.inlineData.mimeType || 'image/png';
+          
+          // Apply watermark before returning
+          const imageUrl = await addWatermark(base64EncodeString, mimeType);
+          
           return { imageUrl, error: null };
         }
       }

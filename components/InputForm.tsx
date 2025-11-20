@@ -1,13 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowRight, Loader2 } from 'lucide-react';
 
 interface InputFormProps {
   onSubmit: (feeling: string) => void;
   isLoading: boolean;
+  initialValue?: string;
 }
 
-export const InputForm: React.FC<InputFormProps> = ({ onSubmit, isLoading }) => {
-  const [input, setInput] = useState('');
+export const InputForm: React.FC<InputFormProps> = ({ onSubmit, isLoading, initialValue = '' }) => {
+  const [input, setInput] = useState(initialValue);
+
+  useEffect(() => {
+    setInput(initialValue);
+  }, [initialValue]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
